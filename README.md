@@ -36,20 +36,20 @@ Consider the following guidelines when creating your benchmark tests
 
 1. **Ensure call characteristics match your production expectations**. The number of calls per minute and total tokens you are able to process varies depending on the prompt size, generation size and call rate.
 1. **Run your test long enough to reach a stable state**. Throttling is based on the total compute you have deployed and are utilizing. The utilization includes active calls. As a result you will see a higher call rate when ramping up on an unloaded deployment because there are no existing active calls being processed. Once your deplyoment is fully loaded with a utilzation near 100%, throttling will increase as calls can only be processed as earlier ones are completed. To ensure an accurate measure, set the duration long enough for the throughput to stabilize, especialy when running at or close to 100% utilization.
-1. **Consider whether to use a retry strategy, and the effect of throttling on the resulting stats**. There are careful considerations when selecting a retry strategy, as the resulting latency statistics will be effected if the resource is pushed beyond it's capacity and to the point of throttling.
-* When running a test with `retry=none`, any throttled request will be treated as throttled and a new request will be made to replace it, with the start time of the replacement request being reset to a newer time. If the resource being tested starts returning 429s, then any latency metrics from this tool will only represent the values of the final successful request, without also including the time that was spent retrying to resource until a successful response was received (which may not be representative of the real-world user experience). This setting should be used when the workload being tested results is within the resource's capacity and no throttling occurs, or where you are looking to understand what percentage of requests to a PTU instance might need to be diverted to a backup resource, such as during periods of peak load which require more throughput than the PTU resource can handle.
-* When running a test with `retry=exponential`, any failed or throttled request will be retried with exponential backoff, up to a max of 60 seconds. While it is always recommended to deploy backup AOAI resources for use-cases that will experience periods of high load, this setting may be useful for trying to simulate a scenario where no backup resource is available, and where throttled or failed requests must still be fulfilled by the resource. In this case, the TTFT and e2e latency metrics will represent the time from the first throttled request to the time that the final request was successful, and may be more reflective of the total time that an end user could spend waiting for a response, e.g. in a chat application. Use this option in situations where you want to understand the latency of requests which are throttled and need to be retried on the same resource, and the how the total latency of a request is impacted by multiple request retries.
+1. **Consider whether to use a retry strategy, and the effect of throttling on the resulting stats**. There are careful considerations to be made when selecting a retry strategy, as the resulting latency statistics will be affected if the resource is pushed beyond its capacity and to the point of throttling.
+* When running a test with `retry=none`, any throttled request will be treated as throttled and a new request will be made to replace it, with the start time of the replacement request being reset to a newer time. If the resource being tested starts returning 429s, then any latency metrics from this tool will only represent the values of the final successful request, without also including the time that was spent retrying the resource until a successful response was received (which may not be representative of the real-world user experience). This setting should be used when the test results are within the resource's capacity and no throttling occurs, or where you are looking to understand what percentage of requests to a PTU instance might need to be diverted to a backup resource, such as during periods of peak load which require more throughput than the PTU resource can handle.
+* When running a test with `retry=exponential`, any failed or throttled request will be retried with exponential backoff, up to a max of 60 seconds. While it is always recommended to deploy backup Azure OpenAI resources for use-cases that will experience periods of high load, this setting may be useful for trying to simulate a scenario where no backup resource is available, and where throttled or failed requests must still be fulfilled by the resource. In this case, the TTFT and e2e latency metrics will represent the time from the first throttled request to the time that the final request was successful, and may be more reflective of the total time that an end user could spend waiting for a response, e.g. in a chat application. Use this option in situations where you want to understand the latency of requests which are throttled and need to be retried on the same resource, and the how the total latency of a request is impacted by multiple request retries.
 * As a practical example, if a PTU resource is tested beyond 100% capacity and starts returning 429s:
-    * With `retry=none` the TTFT and e2e latency statistics will remain stable (and very low), since only the successful requests will be included in the metrics. Number of throttled requests will be relatively high.
+    * With `retry=none` the TTFT and e2e latency statistics will remain stable (and very low), since only the successful requests will be included in the metrics. The number of throttled requests will be relatively high.
     * With `retry=exponential`, the TTFT/e2e latency metrics will increase (potentially up to the max of 60 seconds), while the number of throttled requests will remain lower (since a request is only treated as throttled after 60 seconds, regardless of how many attempts were made within the retry period).
     * Total throughput values (RPM, TPM) may be lower when `retry=none` if rate limiting is applied.
-* As a best practice, any PTU resource should be deployed with a backup PayGO resource for times of peak load. As a result, any testing should be conducted with the values suggested in the AOAI capacity calculator (within the AI Azure Portal) to ensure that throttling does not occur during testing.
+* As a best practice, any PTU resource should be deployed with a backup Pay-as-you-go resource for times of peak load. Any testing should be conducted with the values suggested in the Azure OpenAI capacity calculator (within the AI Azure Portal) to ensure that throttling does not occur during testing.
 
 
 ## Usage examples
 
 ### Common Scenarios:
-The table below provides an example prompt & generation size we have seen with some customers. Actual sizes will vary significantly based on your overall architecture For example,the amount of data grounding you pull into the prompt as part of a chat session can increase the prompt size significantly.
+The table below provides an example prompt & generation size we have seen with some customers. Actual sizes will vary significantly based on your overall architecture. For example, the amount of data context used in the prompt as part of a chat session can increase the prompt size significantly.
 
 | Scenario | Prompt Size | Completion Size | Calls per minute | Provisioned throughput units (PTU) required |
 | -- | -- | -- | -- | -- |
@@ -94,8 +94,8 @@ $ python -m benchmark.bench load \
 
 **Obtain number of tokens for input context**
 
-`tokenize` subcommand can be used to count number of tokens for a given input.
-It supports both text and json chat messages input.
+The `tokenize` subcommand can be used to count number of tokens for a given input.
+It supports both text and json chat messages as inputs.
 
 ```
 $ python -m benchmark.bench tokenize \
@@ -140,7 +140,7 @@ The tool supports four different shape profiles via command line option `--shape
 |`ttft_avg`|Average time in seconds from the beginning of the request until the first token was received.|yes|`0.122`|
 |`ttft_95th`|95th percentile of time in seconds from the beginning of the request until the first token was received.|yes|`0.130`|
 |`tbt_avg`|Average time in seconds between two consequitive generated tokens.|yes|`0.018`|
-|`tbt_95th`|95th percentail of time in seconds between two consequitive generated tokens.|yes|`0.021`|
+|`tbt_95th`|95th percentile of time in seconds between two consecuitive generated tokens.|yes|`0.021`|
 |`e2e_avg`|Average end to end request time.|yes|`1.2`|
 |`e2e_95th`|95th percentile of end to end request time.|yes|`1.5`|
 |`util_avg`|Average deployment utilization percentage as reported by the service.|yes|`89.3%`|
